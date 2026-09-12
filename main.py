@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from core.logger import logger
 from middlewares.middlewares import RateLimitMiddleware
 from routers import auth, reports, tasks  # Import our router with tasks
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(
     title="My Production Ready API",
@@ -16,7 +17,7 @@ app.include_router(tasks.router)
 app.include_router(auth.router)
 app.include_router(reports.router)
 
-
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 origins = [
     "http://localhost:8000",
