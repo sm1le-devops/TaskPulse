@@ -23,6 +23,7 @@ origins = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://localhost:52330",
+    "https://taskpulse-f5zy.onrender.com",
 ]
 
 # CORS должен быть добавлен ПЕРЕД кастомными middleware
