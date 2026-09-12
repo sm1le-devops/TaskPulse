@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Dashboard - FastAPI Backend</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --border-color: #e2e8f0;
+        }
+
+        body { 
+            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+            max-width: 1050px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: var(--bg-color); 
+            color: var(--text-main);
+        }
+
+        .top-bar-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .health-bar {
+            background: var(--card-bg);
+            padding: 10px 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            border: 1px solid var(--border-color);
+            flex: 1;
+        }
+
+        .token-check-bar {
+            background: var(--card-bg);
+            padding: 10px 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .health-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #cbd5e1;
+            display: inline-block;
+        }
+        .dot.online { background: var(--success); box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+        .dot.offline { background: var(--danger); }
+
+        h1 { font-size: 24px; margin-bottom: 5px; font-weight: 700; color: #0f172a; }
+        p.subtitle { color: #64748b; margin-bottom: 20px; font-size: 14px; }
+
+        .card { 
+            background: var(--card-bg); 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s;
+        }
+        .card:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
+
+        input, select, button { 
+            padding: 10px 12px; 
+            margin: 6px 0; 
+            width: 100%; 
+            box-sizing: border-box; 
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        button { 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            cursor: pointer; 
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        button:hover { background: var(--primary-hover); }
+
+        pre { 
+            background: #000000; 
+            color: #ffffff; 
+            padding: 12px; 
+            border-radius: 8px; 
+            max-height: 160px; 
+            overflow-y: auto; 
+            font-family: 'Fira Code', monospace;
+            font-size: 12px; 
+            margin-top: 10px; 
+            border: 1px solid #334155;
+        }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .response-box { margin-top: 10px; font-size: 13px; color: #475569; }
+        
+        .status-badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .success { background: #d1fae5; color: #065f46; }
+        .error { background: #fee2e2; color: #991b1b; }
+        .pending { background: #fef3c7; color: #92400e; }
+
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .task-table th, .task-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+        }
+        .task-table th { background: #f1f5f9; font-weight: 600; color: #334155; }
+        .task-table tr:hover { background: #f8fafc; }
+        .task-checkbox { width: 18px; height: 18px; cursor: pointer; margin: 0; }
+        .btn-sm { padding: 4px 8px; font-size: 11px; width: auto; background: var(--danger); }
+
+        .notification { 
+            margin-top: 10px; 
+            padding: 12px; 
+            border-radius: 8px; 
+            font-size: 13px; 
+            display: none; 
+        }
+        .notification.info { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; display: block; }
+        .notification.success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; display: block; }
+        .notification.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; display: block; }
+
+        .session-box {
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-top: 10px;
+            color: #334155;
+        }
+
+        .timer-badge {
+            font-family: monospace;
+            background: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar-container">
+        <div class="health-bar">
+            <div class="health-indicator">
+                <span id="healthDot" class="dot"></span>
+                <span id="healthText">Checking backend connection...</span>
+            </div>
+            <button onclick="checkHealth()" style="width: auto; padding: 4px 10px; font-size: 12px; background: #64748b; margin: 0;">Check Status</button>
+        </div>
+        <div class="token-check-bar">
+            <button onclick="checkExpiredToken()" style="width: auto; padding: 6px 12px; font-size: 12px; background: var(--warning); color: #000; margin: 0;" title="Check expired token">Check Token</button>
+        </div>
+    </div>
+
+    <h1>🚀 FastAPI Backend Testing Dashboard</h1>
+    <p class="subtitle">Interface for checking authorization, interactive task management, and Celery workers.</p>
+
+    <div class="grid">
+        <div class="card">
+            <h3>1. Authorization and Session</h3>
+            <input type="email" id="authEmail" placeholder="Email" value="admin@example.com">
+            <input type="password" id="authPassword" placeholder="Password" value="123">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button onclick="register()" style="flex: 1;">Register</button>
+                <button onclick="login()" style="background: var(--success); flex: 1;">Login</button>
+                <button onclick="refreshToken()" style="background: #0ea5e9; flex: 1;">Refresh</button>
+                <button onclick="logout()" style="background: var(--danger); flex: 1;">Logout</button>
+            </div>
+            
+            <div id="sessionInfo" class="session-box" style="display: none;">
+                👤 <b>Active User:</b> <span id="sessionUserEmail">-</span> | <b>Role:</b> <span id="sessionUserRole">User</span>
+            </div>
+
+            <div class="response-box">
+                <span>Status: <span id="authStatus" class="status-badge">Waiting</span></span>
+                <pre id="authOutput">// Server response...</pre>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>2. Task Creation</h3>
+            <input type="text" id="taskTitle" placeholder="Task title" value="Buy milk in backend store">
+            <select id="taskPriority">
+                <option value="1">High priority (1)</option>
+                <option value="2" selected>Medium priority (2)</option>
+                <option value="3">Low priority (3)</option>
+            </select>
+            <button onclick="createTask()">Create Task (POST /tasks/)</button>
+            <button onclick="getTasks()" style="background: var(--warning); color: #000; margin-top: 6px;">Load Task List</button>
+            
+            <div class="response-box">
+                <span>Status: <span id="taskStatus" class="status-badge">Waiting</span></span>
+                <pre id="taskOutput">// Server response...</pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📋 Interactive Task List (Dynamic DOM)</h3>
+        <p style="font-size: 12px; color: #64748b; margin-top: 0;">Click on the status checkbox to instantly update the state in the DB, or delete tasks directly from the table.</p>
+        <div style="overflow-x: auto;">
+            <table class="task-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">ID</th>
+                        <th>Task Title</th>
+                        <th style="width: 90px;">Priority</th>
+                        <th style="width: 90px;">Status</th>
+                        <th style="width: 80px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="interactiveTableBody">
+                    <tr><td colspan="5" style="text-align: center; color: #94a3b8;">List is empty. Click "Load Task List" above.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>3. Specific Management by ID (GET, PUT, DELETE)</h3>
+        <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 8px;">
+            <input type="number" id="targetTaskId" placeholder="ID" value="1">
+            <input type="text" id="updateTaskTitle" placeholder="New title">
+            <select id="updateTaskPriority">
+                <option value="1">Priority 1</option>
+                <option value="2" selected>Priority 2</option>
+                <option value="3">Priority 3</option>
+            </select>
+        </div>
+        <select id="updateTaskCompleted" style="margin-top: 6px;">
+            <option value="false">Status: Not completed (false)</option>
+            <option value="true">Status: Completed (true)</option>
+        </select>
+
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button onclick="getTaskById()" style="background: #0ea5e9;">GET by ID</button>
+            <button onclick="updateTask()" style="background: var(--warning); color: black;">PUT Update</button>
+            <button onclick="deleteTask()" style="background: var(--danger);">DELETE Delete</button>
+        </div>
+
+        <div class="response-box">
+            <span>Status: <span id="singleTaskStatus" class="status-badge">Waiting</span></span>
+            <pre id="singleTaskOutput">// Server response...</pre>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>4. Background Reports (Celery)</h3>
+            <button onclick="generateReport()" style="background: #7c3aed;">Generate Report</button>
+            <input type="text" id="taskIdInput" placeholder="Task ID from backend response">
+            
+            <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                <button onclick="checkReportStatus()" style="background: #db2777; flex: 1;">Check Status</button>
+                <button onclick="cancelReportTask()" style="background: var(--danger); flex: 1;">Cancel Task</button>
+            </div>
+            
+            <div id="reportNotification" class="notification"></div>
+
+            <div class="response-box" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Status: <span id="reportStatus" class="status-badge">Waiting</span></span>
+                <span id="pollingTimerContainer" style="font-size: 12px; color: #64748b; display: none;">
+                    Auto-poll in: <span id="pollingTimer" class="timer-badge">2s</span>
+                </span>
+            </div>
+            <pre id="reportOutput">// Server response...</pre>
+        </div>
+
+        <div class="card">
+            <h3>5. Administration Panel</h3>
+            <button onclick="getAdminTasks()" style="background: var(--danger);">All System Tasks (Admin)</button>
+            
+            <div class="response-box">
+                <span>Status: <span id="adminStatus" class="status-badge">Waiting</span></span>
+                <pre id="adminOutput">// Server response...</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8000";
+        let csrfToken = "";
+        let pollInterval = null;
+        let countdownInterval = null;
+
+        window.onload = () => {
+            checkHealth();
+            fetchCurrentUser();
+            getTasks(); // Automatically load the task list on page load
+        };
+
+        async function checkHealth() {
+            const dot = document.getElementById("healthDot");
+            const text = document.getElementById("healthText");
+            text.innerText = "Checking connection...";
+            dot.className = "dot";
+            try {
+                const res = await fetch(`${API_URL}/docs`, { method: "HEAD" });
+                if (res.ok || res.status < 500) {
+                    dot.className = "dot online";
+                    text.innerText = "System active (FastAPI, PostgreSQL & Redis available)";
+                } else {
+                    throw new Error();
+                }
+            } catch (e) {
+                dot.className = "dot offline";
+                text.innerText = "Backend server connection error!";
+            }
+        }
+
+        function setOutput(outputId, statusId, data, startTime, isError = false) {
+            const duration = Date.now() - startTime;
+            const badge = document.getElementById(statusId);
+            badge.innerText = isError ? `❌ Error (${duration}ms)` : `✅ Success (${duration}ms)`;
+            badge.className = "status-badge " + (isError ? "error" : "success");
+            document.getElementById(outputId).innerText = JSON.stringify(data, null, 2);
+        }
+
+        function setPending(statusId, outputId, text) {
+            document.getElementById(statusId).innerText = `⏳ ${text}`;
+            document.getElementById(statusId).className = "status-badge pending";
+            document.getElementById(outputId).innerText = "Processing request...";
+        }
+
+        async function fetchCurrentUser() {
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, { method: "GET", credentials: "include" });
+                if (res.ok) {
+                    const user = await res.json();
+                    document.getElementById("sessionInfo").style.display = "block";
+                    document.getElementById("sessionUserEmail").innerText = user.email;
+                    document.getElementById("sessionUserRole").innerText = user.is_admin ? "Admin 🛡️" : "User 👤";
+                }
+            } catch (e) {
+                console.error("Failed to get user profile", e);
+            }
+        }
+
+        async function register() {
+            const start = Date.now();
+            setPending("authStatus", "authOutput", "Registering...");
+            try {
+                const email = document.getElementById("authEmail").value;
+                const password = document.getElementById("authPassword").value;
+                const res = await fetch(`${API_URL}/auth/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                setOutput("authOutput", "authStatus", data, start, !res.ok);
+            } catch (err) {
+                setOutput("authOutput", "authStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function login() {
+            const start = Date.now();
+            setPending("authStatus", "authOutput", "Logging in...");
+            try {
+                const email = document.getElementById("authEmail").value;
+                const password = document.getElementById("authPassword").value;
+                const formData = new URLSearchParams();
+                formData.append("username", email);
+                formData.append("password", password);
+
+                const res = await fetch(`${API_URL}/auth/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    credentials: "include",
+                    body: formData
+                });
+                const data = await res.json();
+                if (res.ok && data.csrf_token) {
+                    csrfToken = data.csrf_token;
+                    fetchCurrentUser();
+                }
+                setOutput("authOutput", "authStatus", data, start, !res.ok);
+            } catch (err) {
+                setOutput("authOutput", "authStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function checkExpiredToken() {
+            const start = Date.now();
+            setPending("authStatus", "authOutput", "Checking expired token...");
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, { 
+                    method: "GET", 
+                    credentials: "include" 
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    setOutput("authOutput", "authStatus", { 
+                        message: "Token is still active (session is valid)", 
+                        user: data 
+                    }, start, false);
+                } else {
+                    setOutput("authOutput", "authStatus", { 
+                        error: "Token expired or invalid (Unauthorized)", 
+                        details: data 
+                    }, start, true);
+                }
+            } catch (err) {
+                setOutput("authOutput", "authStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function refreshToken() {
+            const start = Date.now();
+            setPending("authStatus", "authOutput", "Refreshing session...");
+            try {
+                const res = await fetch(`${API_URL}/auth/refresh`, { method: "POST", credentials: "include" });
+                const data = await res.json();
+                if (res.ok && data.csrf_token) csrfToken = data.csrf_token;
+                setOutput("authOutput", "authStatus", data, start, !res.ok);
+            } catch (err) {
+                setOutput("authOutput", "authStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function logout() {
+            const start = Date.now();
+            setPending("authStatus", "authOutput", "Logging out...");
+            try {
+                const res = await fetch(`${API_URL}/auth/logout`, {
+                    method: "POST",
+                    headers: { "X-CSRF-Token": csrfToken },
+                    credentials: "include"
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    csrfToken = "";
+                    document.getElementById("sessionInfo").style.display = "none";
+                    document.getElementById("sessionUserEmail").innerText = "-";
+                    document.getElementById("sessionUserRole").innerText = "User";
+                    
+                    // Очищаем таблицу задач при выходе из системы
+                    document.getElementById("interactiveTableBody").innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94a3b8;">List is empty. Please log in and load tasks.</td></tr>`;
+                }
+                
+                setOutput("authOutput", "authStatus", data, start, !res.ok);
+            } catch (err) {
+                setOutput("authOutput", "authStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function createTask() {
+            const start = Date.now();
+            setPending("taskStatus", "taskOutput", "Creating...");
+            try {
+                const title = document.getElementById("taskTitle").value;
+                const priority = parseInt(document.getElementById("taskPriority").value);
+                const res = await fetch(`${API_URL}/tasks/`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+                    credentials: "include",
+                    body: JSON.stringify({ title, priority })
+                });
+                const data = await res.json();
+                setOutput("taskOutput", "taskStatus", data, start, !res.ok);
+                if (res.ok) {
+                    getTasks(); // Auto-update table after successful creation
+                }
+            } catch (err) {
+                setOutput("taskOutput", "taskStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function getTasks() {
+            const start = Date.now();
+            setPending("taskStatus", "taskOutput", "Loading list...");
+            try {
+                const res = await fetch(`${API_URL}/tasks/`, { method: "GET", credentials: "include" });
+                const data = await res.json();
+                setOutput("taskOutput", "taskStatus", data, start, !res.ok);
+                if (res.ok && Array.isArray(data)) {
+                    renderTaskTable(data);
+                }
+            } catch (err) {
+                setOutput("taskOutput", "taskStatus", { error: err.message }, start, true);
+            }
+        }
+
+        function renderTaskTable(tasks) {
+            const tbody = document.getElementById("interactiveTableBody");
+            if (tasks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No tasks found.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = tasks.map(t => `
+                <tr>
+                    <td><b>#${t.id}</b></td>
+                    <td>${t.title}</td>
+                    <td>${t.priority}</td>
+                    <td>
+                        <input type="checkbox" class="task-checkbox" ${t.completed ? 'checked' : ''} 
+                            onclick="toggleTaskStatus(${t.id}, this.checked, '${t.title.replace(/'/g, "\\'")}', ${t.priority})">
+                    </td>
+                    <td>
+                        <button class="btn-sm" onclick="deleteTaskRow(${t.id})">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function toggleTaskStatus(id, completed, title, priority) {
+            try {
+                const res = await fetch(`${API_URL}/tasks/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+                    credentials: "include",
+                    body: JSON.stringify({ title, priority, completed })
+                });
+                if (res.ok) {
+                    getTasks(); // Auto-update table on status change
+                } else {
+                    alert("Error changing task status");
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function deleteTaskRow(id) {
+            if (!confirm(`Delete task #${id}?`)) return;
+            try {
+                const res = await fetch(`${API_URL}/tasks/${id}`, {
+                    method: "DELETE",
+                    headers: { "X-CSRF-Token": csrfToken },
+                    credentials: "include"
+                });
+                if (res.ok) {
+                    getTasks(); // Auto-update table after row deletion
+                } else {
+                    alert("Failed to delete task");
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function getTaskById() {
+            const start = Date.now();
+            const taskId = document.getElementById("targetTaskId").value;
+            setPending("singleTaskStatus", "singleTaskOutput", `Searching #${taskId}...`);
+            try {
+                const res = await fetch(`${API_URL}/tasks/${taskId}`, { method: "GET", credentials: "include" });
+                const data = await res.json();
+                if (res.ok) {
+                    if (data.title !== undefined) document.getElementById("updateTaskTitle").value = data.title;
+                    if (data.priority !== undefined) document.getElementById("updateTaskPriority").value = data.priority;
+                    if (data.completed !== undefined) document.getElementById("updateTaskCompleted").value = String(data.completed);
+                }
+                setOutput("singleTaskOutput", "singleTaskStatus", data, start, !res.ok);
+            } catch (err) {
+                setOutput("singleTaskOutput", "singleTaskStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function updateTask() {
+            const start = Date.now();
+            const taskId = document.getElementById("targetTaskId").value;
+            const title = document.getElementById("updateTaskTitle").value;
+            const priority = parseInt(document.getElementById("updateTaskPriority").value);
+            const completed = document.getElementById("updateTaskCompleted").value === "true";
+
+            setPending("singleTaskStatus", "singleTaskOutput", `Updating #${taskId}...`);
+            try {
+                const res = await fetch(`${API_URL}/tasks/${taskId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+                    credentials: "include",
+                    body: JSON.stringify({ title, priority, completed })
+                });
+                const data = await res.json();
+                setOutput("singleTaskOutput", "singleTaskStatus", data, start, !res.ok);
+                if (res.ok) {
+                    getTasks(); // Auto-update table when updating task via block 3
+                }
+            } catch (err) {
+                setOutput("singleTaskOutput", "singleTaskStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function deleteTask() {
+            const start = Date.now();
+            const taskId = document.getElementById("targetTaskId").value;
+            setPending("singleTaskStatus", "singleTaskOutput", `Deleting #${taskId}...`);
+            try {
+                const res = await fetch(`${API_URL}/tasks/${taskId}`, {
+                    method: "DELETE",
+                    headers: { "X-CSRF-Token": csrfToken },
+                    credentials: "include"
+                });
+                const data = await res.json();
+                setOutput("singleTaskOutput", "singleTaskStatus", data, start, !res.ok);
+                if (res.ok) {
+                    getTasks(); // Auto-update table when deleting via block 3
+                }
+            } catch (err) {
+                setOutput("singleTaskOutput", "singleTaskStatus", { error: err.message }, start, true);
+            }
+        }
+
+        function stopPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
+            document.getElementById("pollingTimerContainer").style.display = "none";
+            pollInterval = null;
+            countdownInterval = null;
+        }
+
+        async function generateReport() {
+            const start = Date.now();
+            setPending("reportStatus", "reportOutput", "Starting task in Celery...");
+            const notification = document.getElementById("reportNotification");
+            stopPolling();
+
+            try {
+                const res = await fetch(`${API_URL}/reports/generate`, { 
+                    method: "POST", 
+                    headers: { "X-CSRF-Token": csrfToken },
+                    credentials: "include" 
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    notification.className = "notification error";
+                    notification.innerHTML = "❌ Authorization error: unable to start task.";
+                } else {
+                    if (data.task_id) {
+                        document.getElementById("taskIdInput").value = data.task_id;
+                        startPollingStatus(data.task_id);
+                    }
+                    notification.className = "notification success";
+                    notification.innerHTML = "⏳ Task started. Status auto-polling enabled...";
+                }
+
+                setOutput("reportOutput", "reportStatus", data, start, !res.ok);
+            } catch (err) {
+                notification.className = "notification error";
+                notification.innerHTML = "❌ Server connection error.";
+                setOutput("reportOutput", "reportStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function cancelReportTask() {
+            const taskId = document.getElementById("taskIdInput").value;
+            const notification = document.getElementById("reportNotification");
+            if (!taskId) { alert("Specify Task ID to cancel!"); return; }
+            
+            try {
+                const res = await fetch(`${API_URL}/reports/cancel/${taskId}`, { 
+                    method: "POST", 
+                    headers: { "X-CSRF-Token": csrfToken },
+                    credentials: "include" 
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    notification.className = "notification error";
+                    notification.innerHTML = "🚫 Background task was cancelled.";
+                    stopPolling();
+                } else {
+                    alert("Failed to cancel task");
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function startPollingStatus(taskId) {
+            const timerContainer = document.getElementById("pollingTimerContainer");
+            const timerBadge = document.getElementById("pollingTimer");
+            timerContainer.style.display = "inline-block";
+            
+            let timeLeft = 2;
+            timerBadge.innerText = `${timeLeft}s`;
+
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft < 0) timeLeft = 2;
+                timerBadge.innerText = `${timeLeft}s`;
+            }, 1000);
+
+            pollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch(`${API_URL}/reports/status/${taskId}`, { method: "GET", credentials: "include" });
+                    const data = await res.json();
+                    const notification = document.getElementById("reportNotification");
+
+                    if (res.ok) {
+                        if (data.ready || data.status === "SUCCESS") {
+                            notification.className = "notification success";
+                            notification.innerHTML = "✅ Report successfully generated and processed by worker!";
+                            document.getElementById("reportStatus").innerText = "✅ Success";
+                            document.getElementById("reportStatus").className = "status-badge success";
+                            document.getElementById("reportOutput").innerText = JSON.stringify(data, null, 2);
+                            stopPolling();
+                        }
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 2000);
+        }
+
+        async function checkReportStatus() {
+            const start = Date.now();
+            const taskId = document.getElementById("taskIdInput").value;
+            if (!taskId) { alert("Specify Task ID!"); return; }
+            setPending("reportStatus", "reportOutput", `Checking status for #${taskId}...`);
+            try {
+                const res = await fetch(`${API_URL}/reports/status/${taskId}`, { method: "GET", credentials: "include" });
+                const data = await res.json();
+                setOutput("reportOutput", "reportStatus", data, start, !res.ok);
+            } catch (err) {
+                setOutput("reportOutput", "reportStatus", { error: err.message }, start, true);
+            }
+        }
+
+        async function getAdminTasks() {
+            const start = Date.now();
+            setPending("adminStatus", "adminOutput", "Loading admin tasks...");
+            try {
+                const res = await fetch(`${API_URL}/tasks/admin/tasks`, { 
+                    method: "GET", 
+                    headers: { "X-CSRF-Token": csrfToken },
+                    credentials: "include" 
+                });
+                const data = await res.json();
+                setOutput("adminOutput", "adminStatus", data, start, !res.ok);
+            } catch (err) {
+                setOutput("adminOutput", "adminStatus", { error: err.message }, start, true);
+            }
+        }
+    </script>
+</body>
+</html>
