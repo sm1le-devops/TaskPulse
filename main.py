@@ -59,3 +59,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 def read_root():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
+    
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
