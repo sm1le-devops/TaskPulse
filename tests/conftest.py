@@ -4,16 +4,21 @@ import os
 # TEST ENVIRONMENT
 # ============================================================
 
-os.environ["SECRET_KEY"] = "test_secret_key_for_pytest_12345"
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["BCRYPT_ROUNDS"] = "4"
-
-os.environ["REDIS_URL_BROKER"] = "redis://localhost:6379/0"
-
-os.environ["CELERY_TASK_ALWAYS_EAGER"] = "True"
-os.environ["CELERY_TASK_STORE_EAGER_RESULT"] = "True"
-os.environ["CELERY_BROKER_URL"] = "memory://"
-os.environ["CELERY_RESULT_BACKEND"] = "cache+memory://"
+os.environ.setdefault("SECRET_KEY", "test_secret_key_for_pytest_12345")
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("BCRYPT_ROUNDS", "4")
+os.environ.setdefault(
+    "REDIS_URL_BROKER",
+    "redis://localhost:6379/0",
+)
+os.environ.setdefault(
+    "REDIS_URL_CACHE",
+    "redis://localhost:6379/1",
+)
+os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "True")
+os.environ.setdefault("CELERY_TASK_STORE_EAGER_RESULT", "True")
+os.environ.setdefault("CELERY_BROKER_URL", "memory://")
+os.environ.setdefault("CELERY_RESULT_BACKEND", "cache+memory://")
 
 
 # ============================================================
