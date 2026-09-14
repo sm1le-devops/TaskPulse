@@ -7,17 +7,13 @@ os.environ["CELERY_BROKER_URL"] = "memory://"
 os.environ["CELERY_RESULT_BACKEND"] = "cache+memory://"
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from db.database import Base, get_db
-from main import app
+# 1. Сначала создаем тестовый движок и патчим db.database ДО импорта app и celery
+import db.database as db_module
 
-import models.models
-
-# 1. Setup isolated in-memory database
 DATABASE_URL = "sqlite:///:memory:?cache=shared"
 engine = create_engine(
     DATABASE_URL,
@@ -28,6 +24,20 @@ TestingSessionLocal = sessionmaker(
     autocommit=False, autoflush=False, bind=engine
 )
 
+# Переопределяем движок и сессию в модуле базы данных
+db_module.engine = engine
+db_module.SessionLocal = TestingSessionLocal
+
+# Теперь безопасно импортируем приложение и задачи
+from fastapi.testclient import TestClient
+from db.database import Base, get_db
+from main import app
+import models.models
+import workers.celery_tasks
+
+# Принудительно подменяем SessionLocal внутри модуля Celery-задач, если он уже успел импортироваться
+if hasattr(workers.celery_tasks, "SessionLocal"):
+    workers.celery_tasks.SessionLocal = TestingSessionLocal
 
 def override_get_db():
   try:
@@ -45,7 +55,6 @@ def setup_database():
   Base.metadata.create_all(bind=engine)
   yield
   Base.metadata.drop_all(bind=engine)
-
 
 # ==========================================
 # BLOCK 1: AUTHENTICATION AND REFRESH TESTS
