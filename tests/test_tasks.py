@@ -233,5 +233,5 @@ def test_generate_and_check_report():
     assert status_response.status_code == 200
     status_data = status_response.json()
     
-    assert status_data["status"] == "completed"
+    assert status_data["status"] == "SUCCESS"
     assert status_data["user_email"] == "report_user@test.com"
