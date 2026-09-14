@@ -16,8 +16,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 # Secret key for signing JWTs (hidden in environment variables .env in real projects)
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-ACCESS_TOKEN = int(os.getenv("ACCESS_TOKEN"))
-REFRESH_TOKEN = int(os.getenv("REFRESH_TOKEN"))
+ACCESS_TOKEN = int(os.getenv("ACCESS_TOKEN","120"))
+REFRESH_TOKEN = int(os.getenv("REFRESH_TOKEN","604800"))
 
 
 # 1. Password hashing function
