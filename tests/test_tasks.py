@@ -6,14 +6,16 @@ os.environ["CELERY_TASK_ALWAYS_EAGER"] = "True"
 os.environ["CELERY_BROKER_URL"] = "memory://"
 os.environ["CELERY_RESULT_BACKEND"] = "cache+memory://"
 
-from db.database import Base, get_db
-from fastapi.testclient import TestClient
-from main import app
-import models.models as models
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from db.database import Base, get_db
+from main import app
+
+import models.models
 
 # 1. Setup isolated in-memory database
 DATABASE_URL = "sqlite:///:memory:"
