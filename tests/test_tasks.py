@@ -190,3 +190,35 @@ def test_no_n_plus_one_on_tasks_list():
     response = client.get("/tasks/", headers=headers)
     assert response.status_code == 200
     assert query_count <= 2
+    
+# ==========================================
+# BLOCK 5: BACKGROUND REPORTS TESTS
+# ==========================================
+
+def test_generate_and_check_report():
+    # Register and login user
+    client.post(
+        "/auth/register", json={"email": "report_user@test.com", "password": "123"}
+    )
+    client.post(
+        "/auth/login", data={"username": "report_user@test.com", "password": "123"}
+    )
+    csrf_cookie = client.cookies.get("csrf_token")
+    headers = {"X-CSRF-Token": csrf_cookie} if csrf_cookie else {}
+
+    # Trigger report generation
+    response = client.post("/reports/generate", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Check that task_id is returned
+    assert "task_id" in data
+    task_id = data["task_id"]
+
+    # Check report status (due to task_always_eager=True, it should be completed instantly)
+    status_response = client.get(f"/reports/status/{task_id}", headers=headers)
+    assert status_response.status_code == 200
+    status_data = status_response.json()
+    
+    assert status_data["status"] == "completed"
+    assert status_data["user_email"] == "report_user@test.com"
