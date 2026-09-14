@@ -21,3 +21,8 @@ RUN poetry install --no-root --no-interaction --no-ansi
 
 # Копируем остальной код проекта
 COPY . .
+
+RUN chmod +x start.sh
+
+# Запускаем через CMD
+CMD ["./start.sh"]
