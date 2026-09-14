@@ -32,3 +32,4 @@ jobs:
           DATABASE_URL: sqlite:///:memory:
           SECRET_KEY: test_secret_key
           ACCESS_TOKEN: 3600
+          REFRESH_TOKEN: 604800
