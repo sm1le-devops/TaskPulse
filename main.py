@@ -5,11 +5,31 @@ from core.logger import logger
 from middlewares.middlewares import RateLimitMiddleware
 from routers import auth, reports, tasks  # Import our router with tasks
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+import os
+import redis.asyncio as redis
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    redis_url = os.getenv(
+        "REDIS_URL_BROKER",
+        "redis://redis_broker:6379/0",
+        )
+    app.state.redis = redis.Redis.from_url(
+        redis_url,
+        decode_responses=True,
+        socket_connect_timeout=0.5,
+        socket_timeout=0.5,)
+    try:
+        yield
+    finally:
+        await app.state.redis.aclose()
+        
 app = FastAPI(
     title="My Production Ready API",
-    docs_url=None,  # Disables /docs
-    redoc_url=None,  # Disables /redoc
+    docs_url=None,  
+    redoc_url=None, 
+    lifespan=lifespan,
 )
 
 # Include task routers to our application
@@ -35,7 +55,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RateLimitMiddleware)
-
+        
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
   # Log the error itself at ERROR level (works for debugging)

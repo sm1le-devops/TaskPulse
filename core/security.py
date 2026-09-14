@@ -4,13 +4,11 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from models.models import User
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 import os
 import uuid
+import bcrypt
 
-# Password hashing algorithm configuration (bcrypt)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 # Secret key for signing JWTs (hidden in environment variables .env in real projects)
@@ -18,11 +16,18 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN = int(os.getenv("ACCESS_TOKEN","120"))
 REFRESH_TOKEN = int(os.getenv("REFRESH_TOKEN","604800"))
-
+BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))
 
 # 1. Password hashing function
 def get_password_hash(password: str) -> str:
-  return pwd_context.hash(password)
+    password_bytes = password.encode("utf-8")
+
+    hashed_password = bcrypt.hashpw(
+        password_bytes,
+        bcrypt.gensalt(rounds=BCRYPT_ROUNDS),
+    )
+
+    return hashed_password.decode("utf-8")
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):  # <--- Accepting request
@@ -65,20 +70,27 @@ def get_current_admin_user(
 
 # 2. Password verification function (compares user input against the database hash)
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-  return pwd_context.verify(plain_password, hashed_password)
+  return bcrypt.checkpw(
+      plain_password.encode("utf-8"),
+      hashed_password.encode("utf-8")
+  )
 
 
 # 3. JWT token generation function
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-  to_encode = data.copy()
-  if expires_delta:
+def create_access_token(
+    data: dict,
+    expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta is None:
+        expires_delta = timedelta(minutes=ACCESS_TOKEN)
     expire = datetime.now(timezone.utc) + expires_delta
-  else:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-
-  to_encode.update({"exp": expire})
-  encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-  return encoded_jwt
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(
+        to_encode,
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+    return encoded_jwt
 
 
 def verify_csrf_token(request: Request, x_csrf_token: str = Header(...)):

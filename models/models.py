@@ -1,5 +1,5 @@
 from db.database import Base
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 
@@ -41,5 +41,7 @@ class RefreshToken(Base):
   id = Column(Integer, primary_key=True, index=True)
   token = Column(String, unique=True, index=True, nullable=False)
   user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+  
+  expires_at = Column(DateTime(timezone=True), nullable=False) 
 
   user = relationship("User", back_populates="refresh_tokens")

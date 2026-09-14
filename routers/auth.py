@@ -3,6 +3,7 @@ from db.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import Request
 from fastapi import Response
+from datetime import datetime, timedelta, timezone
 from fastapi.security import OAuth2PasswordRequestForm
 from core.logger import logger
 from core.security import get_current_user
@@ -15,10 +16,13 @@ from schemas.schemas import (
     UserResponse,
 )
 from core.security import (
+    ACCESS_TOKEN,
+    REFRESH_TOKEN,
     create_access_token,
     create_refresh_token,
     get_password_hash,
     verify_password,
+    verify_csrf_token,
 )
 from sqlalchemy.orm import Session
 import secrets
@@ -70,7 +74,7 @@ def login(
   csrf_token = secrets.token_hex(32)
 
   # 3. Save Refresh Token to database (linked to user)
-  db_token = RefreshToken(token=refresh_token_str, user_id=user.id)
+  db_token = RefreshToken(token=refresh_token_str, user_id=user.id, expires_at=datetime.now(timezone.utc) + timedelta(seconds=REFRESH_TOKEN))
   db.add(db_token)
   db.commit()
 
@@ -81,7 +85,7 @@ def login(
       secure=True,  
       samesite="Lax",
       path="/",
-      max_age=120,
+      max_age=ACCESS_TOKEN * 60,
   )
 
   response.set_cookie(
@@ -99,7 +103,7 @@ def login(
       secure=True,  
       samesite="Lax",
       path="/",  
-      max_age=604800,  
+      max_age=REFRESH_TOKEN,  
   )
 
   return {
@@ -112,7 +116,7 @@ def login(
 # Access token refresh endpoint
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_access_token(
-    request: Request, response: Response, db: Session = Depends(get_db)
+    request: Request, response: Response, db: Session = Depends(get_db), _: None = Depends(verify_csrf_token)
 ):
   # 1. Retrieve refresh_token directly from browser HttpOnly cookies
   refresh_token_val = request.cookies.get("refresh_token")
@@ -138,6 +142,20 @@ def refresh_access_token(
         detail="Invalid refresh token",
     )
 
+  expires_at = db_token.expires_at
+
+  if expires_at.tzinfo is None:
+    expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+  if expires_at <= datetime.now(timezone.utc):
+    db.delete(db_token)
+    db.commit()
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Refresh token has expired",
+    )
+    
   # 3. Identify the user who owns this token
   user = db.query(User).filter(User.id == db_token.user_id).first()
   if not user:
@@ -154,7 +172,12 @@ def refresh_access_token(
   new_access_token = create_access_token(data={"sub": user.email})
   new_refresh_token = create_refresh_token()
 
-  new_db_token = RefreshToken(token=new_refresh_token, user_id=user.id)
+  new_db_token = RefreshToken(
+    token=new_refresh_token,
+    user_id=user.id,
+    expires_at=datetime.now(timezone.utc)
+    + timedelta(seconds=REFRESH_TOKEN),
+    )
   db.add(new_db_token)
   db.commit()
 
@@ -165,7 +188,7 @@ def refresh_access_token(
       secure=True,
       samesite="Lax",
       path="/",
-      max_age=120,
+      max_age=ACCESS_TOKEN * 60,
   )
   response.set_cookie(
       key="refresh_token",
@@ -174,7 +197,7 @@ def refresh_access_token(
       secure=True,
       samesite="Lax",
       path="/",
-      max_age=604800,
+      max_age=REFRESH_TOKEN,
   )
 
   logger.info(f"New token pair successfully issued for user {user.email}")
@@ -186,19 +209,33 @@ def refresh_access_token(
   
 @router.get("/me", response_model=UserResponse)
 def get_current_user_profile(
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Endpoint to retrieve the profile of the currently logged-in user using access_token from cookies."""
+    """Endpoint to retrieve the profile of the currently logged-in user."""
 
     return current_user
 
 @router.post("/logout")
-def logout(response: Response):
-    
-    """Logout endpoint"""
-    
+def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    refresh_token_val = request.cookies.get("refresh_token")
+
+    if refresh_token_val:
+        db_token = (
+            db.query(RefreshToken)
+            .filter(RefreshToken.token == refresh_token_val)
+            .first()
+        )
+
+        if db_token:
+            db.delete(db_token)
+            db.commit()
+            
     response.delete_cookie(key="access_token", path="/")
     response.delete_cookie(key="csrf_token", path="/")
-    response.delete_cookie(key="refresh_token", path="/")  
+    response.delete_cookie(key="refresh_token", path="/")
+
     return {"message": "Successfully logged out"}
