@@ -1,7 +1,7 @@
 import os
 
 os.environ["SECRET_KEY"] = "test_secret_key_for_pytest_12345"
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:?cache=shared"
 os.environ["CELERY_TASK_ALWAYS_EAGER"] = "True"
 os.environ["CELERY_BROKER_URL"] = "memory://"
 os.environ["CELERY_RESULT_BACKEND"] = "cache+memory://"
@@ -18,7 +18,7 @@ from main import app
 import models.models
 
 # 1. Setup isolated in-memory database
-DATABASE_URL = "sqlite:///:memory:"
+DATABASE_URL = "sqlite:///:memory:?cache=shared"
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False},
