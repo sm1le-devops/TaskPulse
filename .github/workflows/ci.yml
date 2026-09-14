@@ -42,9 +42,10 @@ jobs:
 
       - name: Run tests
         env:
-          SECRET_KEY: test_secret_key_for_pytest_12345
-          DATABASE_URL: sqlite:///:memory:
-          REDIS_URL_BROKER: redis://localhost:6379/0
-          REDIS_URL_CACHE: redis://localhost:6379/1
+          SECRET_KEY: "test_secret_key_for_pytest_12345"
+          DATABASE_URL: "sqlite:///:memory:"
+          REDIS_URL_BROKER: "redis://localhost:6379/0"
+          REDIS_URL_CACHE: "redis://localhost:6379/1"
           TESTING: "true"
-        run: poetry run pytest -v   
+        run: |
+          poetry run pytest -v
