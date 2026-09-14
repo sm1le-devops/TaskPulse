@@ -1,9 +1,8 @@
-# workers/celery_app.py
 import os
 from celery import Celery
 
-broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+broker_url = os.getenv("REDIS_URL_BROKER", "redis://redis_broker:6379/0")
+result_backend = os.getenv("REDIS_URL_CACHE", "redis://redis_broker:6379/1")
 
 celery = Celery(
     "fastapi_app",

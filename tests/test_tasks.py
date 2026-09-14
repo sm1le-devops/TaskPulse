@@ -1,4 +1,11 @@
 import os
+
+os.environ["SECRET_KEY"] = "test_secret_key_for_pytest_12345"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["CELERY_TASK_ALWAYS_EAGER"] = "True"
+os.environ["CELERY_BROKER_URL"] = "memory://"
+os.environ["CELERY_RESULT_BACKEND"] = "cache+memory://"
+
 from db.database import Base, get_db
 from fastapi.testclient import TestClient
 from main import app
@@ -29,8 +36,7 @@ def override_get_db():
 
 
 app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
-
+client = TestClient(app, base_url="https://testserver")
 
 @pytest.fixture(autouse=True)
 def setup_database():

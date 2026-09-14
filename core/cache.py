@@ -22,8 +22,8 @@ def get_cached_tasks(user_id: int):
 
 def set_cached_tasks(user_id: int, tasks_data: list):
   """Saves the user's task list in Redis with a 60-second TTL."""
-  redis_cache.setex(
-      name=f"cache:tasks:user:{user_id}", time=60, value=json.dumps(tasks_data)
+  redis_cache.set(
+    name=f"cache:tasks:user:{user_id}", value=json.dumps(tasks_data), ex=60
   )
 
 
