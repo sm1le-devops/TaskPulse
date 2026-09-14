@@ -162,38 +162,31 @@ def test_admin_routes_permissions():
 
 
 def test_no_n_plus_one_on_tasks_list():
-  # Register user and create several tasks
-  client.post(
-      "/auth/register", json={"email": "perf@test.com", "password": "123"}
-  )
-  client.post(
-      "/auth/login", data={"username": "perf@test.com", "password": "123"}
-  )
-  csrf_cookie = client.cookies.get("csrf_token")
-  headers = {"X-CSRF-Token": csrf_cookie} if csrf_cookie else {}
-
-  for i in range(5):
     client.post(
-        "/tasks/",
-        json={"title": f"Task {i}", "priority": i},
-        headers=headers,
+        "/auth/register", json={"email": "perf@test.com", "password": "123"}
     )
+    client.post(
+        "/auth/login", data={"username": "perf@test.com", "password": "123"}
+    )
+    csrf_cookie = client.cookies.get("csrf_token")
+    headers = {"X-CSRF-Token": csrf_cookie} if csrf_cookie else {}
 
-  # Intercept the number of SQL queries to the database during GET /tasks/
-  query_count = 0
+    for i in range(5):
+        response = client.post(
+            "/tasks/",
+            json={"title": f"Task {i}", "priority": i},
+            headers=headers,
+        )
+        assert response.status_code == 200
 
-  @event.listens_for(engine, "before_cursor_execute")
-  def count_queries(
-      conn, cursor, statement, parameters, context, executemany
-  ):
-    nonlocal query_count
-    # Count only SELECT queries to tables
-    if statement.strip().startswith("SELECT"):
-      query_count += 1
+    query_count = 0
 
-  # Execute request to get task list
-  response = client.get("/tasks/", headers=headers)
-  assert response.status_code == 200
+    @event.listens_for(engine, "before_cursor_execute")
+    def count_queries(conn, cursor, statement, parameters, context, executemany):
+        nonlocal query_count
+        if statement.strip().startswith("SELECT"):
+            query_count += 1
 
-  # Verify that the query count is minimal (no O(N) growth)
-  assert query_count <= 2
+    response = client.get("/tasks/", headers=headers)
+    assert response.status_code == 200
+    assert query_count <= 2

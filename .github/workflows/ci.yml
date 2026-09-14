@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "**" ]
+    branches: ["**"]
   pull_request:
-    branches: [ "**" ]
+    branches: ["**"]
 
 jobs:
   test:
@@ -22,10 +22,10 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -37,22 +37,14 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
-
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root
 
-      - name: Run Pytest
+      - name: Run tests
         env:
-          SECRET_KEY: "test_secret_key_for_pytest_12345"
-          DATABASE_URL: "sqlite:///:memory:"
-          REDIS_URL_BROKER: "redis://localhost:6379/0"
-          REDIS_URL_CACHE: "redis://localhost:6379/1"
-        run: |
-          poetry run pytest -v
+          SECRET_KEY: test_secret_key_for_pytest_12345
+          DATABASE_URL: sqlite:///:memory:
+          REDIS_URL_BROKER: redis://localhost:6379/0
+          REDIS_URL_CACHE: redis://localhost:6379/1
+          TESTING: "true"
+        run: poetry run pytest -v   

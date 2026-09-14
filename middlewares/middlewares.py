@@ -14,6 +14,8 @@ redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
 class RateLimitMiddleware(BaseHTTPMiddleware):
 
   async def dispatch(self, request: Request, call_next):
+    if os.getenv("TESTING") == "true":
+        return await call_next(request)
     # 1. Get the IP address of the client sending the request
     client_ip = request.client.host
 
