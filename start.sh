@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-# Запускаем Celery в фоне с concurrency=1, чтобы вписываться в лимиты памяти Render
+# Запускаем Celery-воркер в фоновом режиме
 celery -A workers.celery_app:celery worker --concurrency=1 --loglevel=info &
 
-# Запускаем Uvicorn в фокусном режиме, чтобы удерживать порт Render открытым
-uvicorn main:app --host 0.0.0.0 --port $PORT
+# Обязательно используем exec, чтобы Uvicorn стал главным процессом (PID 1) 
+# и напрямую ответил Render на динамический порт $PORT
+exec uvicorn main:app --host 0.0.0.0 --port $PORT
