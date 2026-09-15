@@ -1,141 +1,163 @@
 # TaskPulse
 
-**Production-oriented FastAPI backend focused on security, async processing, caching, testing and performance.**
+> A full-stack task management application with a web interface for creating, tracking and managing personal tasks, backed by a production-oriented FastAPI API.
 
-[![CI](https://github.com/sm1le-devops/TaskPulse/actions/workflows/ci.yml/badge.svg)](https://github.com/sm1le-devops/TaskPulse/actions)
+[![CI/CD](https://github.com/sm1le-devops/TaskPulse/actions/workflows/ci.yml/badge.svg)](https://github.com/sm1le-devops/TaskPulse/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-87.03%25-brightgreen)](#)
+[![Python](https://img.shields.io/badge/python-3.12-blue)](#)
 
 **Live Demo:** https://taskpulse-f5zy.onrender.com/
 
-## Stack
+## ⚡ Stack
 
-`Python 3.12` · `FastAPI` · `PostgreSQL` · `SQLAlchemy` · `Redis` · `Celery` · `Docker` · `Pytest` · `CI/CD`
+`Python 3.12` · `FastAPI` · `PostgreSQL` · `SQLAlchemy` · `Redis` · `Celery` · `Docker` · `Pytest` · `GitHub Actions`
 
-## What I Built
+## 📊 Key Numbers
+
+| Metric                |             Value |
+| --------------------- | ----------------: |
+| Tests                 |            **62** |
+| Coverage              |        **87.03%** |
+| CI threshold          |           **85%** |
+| Rate limit            | **20 req/min/IP** |
+| Failed login attempts |             **5** |
+| Access token          |        **15 min** |
+| Refresh token         |        **7 days** |
+| Idempotency window    |        **1 hour** |
+| Task queries          |    **≤2 SELECTs** |
+
+## 🏗️ Architecture
+
+```text
+                              ┌──────────────────┐
+                              │      Client      │
+                              │    Web Browser   │
+                              └────────┬─────────┘
+                                       │ HTTPS
+                                       ▼
+                              ┌──────────────────┐
+                              │     FastAPI      │
+                              │                  │
+                              │ Auth · Tasks     │
+                              │ Reports · RBAC   │
+                              │ CSRF             │
+                              └───────┬─────┬────┘
+                                      │     │
+                         ┌────────────┘     └────────────┐
+                         ▼                               ▼
+                ┌─────────────────┐             ┌─────────────────┐
+                │   PostgreSQL    │             │      Redis      │
+                │                 │             │                 │
+                │ Users           │             │ Cache           │
+                │ Tasks           │             │ Rate limiting   │
+                │ Reports         │             │ Login attempts  │
+                │ Refresh tokens  │             │ Idempotency     │
+                └─────────────────┘             │ Celery Broker   │
+                                                └────────┬────────┘
+                                                         │
+                                                         ▼
+                                                ┌─────────────────┐
+                                                │ Celery Worker   │
+                                                │                 │
+                                                │ Report jobs     │
+                                                │ Background work │
+                                                └────────┬────────┘
+                                                         │
+                                                         ▼
+                                                    PostgreSQL
+
+
+                         ┌──────────────────────────┐
+                         │      GitHub Actions      │
+                         │                          │
+                         │ Tests · Coverage         │
+                         │ PostgreSQL · Redis       │
+                         │ Alembic · Deploy         │
+                         └────────────┬─────────────┘
+                                      │
+                                      ▼
+                                  Production
+```
+
+## 🔐 Security
 
 * JWT authentication with **HttpOnly cookies**
 * **Refresh token rotation**
 * **CSRF protection**
-* Redis-based **IP rate limiting**
-* Redis **response caching**
-* Celery background jobs
-* PostgreSQL + SQLAlchemy
-* User/task **data isolation**
-* Role-based access control
-* Structured application logging
-* Dockerized development environment
-* Automated tests and CI/CD
+* **RBAC + IDOR protection**
+* Redis **rate limiting**
+* Login **brute-force protection**
+* bcrypt password hashing
+* Secure / SameSite cookies
+* Security headers + CSP
+* User-level data isolation
 
-## Engineering Highlights
+## ⚙️ Engineering Highlights
 
-### Performance
+**Redis**
 
-Local benchmark using **100 sequential requests**:
+`Caching` · `Rate Limiting` · `Login Protection` · `Idempotency` · `Celery Broker`
 
-| Endpoint      |     Avg |         P95 |      Max |
-| ------------- | ------: | ----------: | -------: |
-| `GET /health` | 1.34 ms | **1.56 ms** | 13.12 ms |
-| `GET /tasks/` | 4.41 ms | **4.93 ms** |  7.27 ms |
+**Celery**
 
-`GET /tasks/` was benchmarked with **20 persisted tasks** and Redis caching enabled.
-
-> Benchmarks were run locally with FastAPI TestClient and are intended for regression tracking, not production capacity estimates.
-
-### Test Suite
-
-* **32 tests passing**
-* **89% code coverage**
-* Authentication & authorization
-* CSRF validation
-* Refresh token flow
-* User data isolation
-* Redis rate limiting & TTL
-* Celery task execution
-* N+1 query detection
-* API performance benchmarks
-
-### Query Efficiency
-
-`GET /tasks/` is protected against N+1 queries:
-
-**≤ 2 SELECT queries** for the task list.
-
-### Rate Limiting
-
-Redis-based IP rate limiter:
+Long-running report generation runs asynchronously:
 
 ```text
-20 requests / minute / IP
-21st request → HTTP 429
-TTL → 60 seconds
+POST /reports/generate
+        │
+        ▼
+Idempotency check
+        │
+        ▼
+Create task
+        │
+        ▼
+Celery Worker
+        │
+        ▼
+Background report generation
 ```
 
-## Test Optimization
+**Idempotency**
 
-The test suite initially suffered from slow Redis operations and duplicated test database configuration.
+`Idempotency-Key` prevents duplicate report jobs for the same user within **1 hour**.
 
-I fixed these bottlenecks by:
+Production verified: the same key produced **one Celery task instead of two**.
 
-* separating host and Docker Redis configuration
-* adding Redis connection/socket timeouts
-* migrating Redis operations to `redis.asyncio`
-* managing Redis lifecycle through FastAPI lifespan
-* isolating Redis state between tests
-* mocking non-essential background email tasks
-* centralizing shared test infrastructure in `tests/conftest.py`
-* using a single shared SQLite test engine
+Uses atomic Redis `SET NX EX`.
 
-Current result:
+**N+1 Protection**
+
+Task listing is regression-tested to stay within **≤2 SELECT queries**.
+
+## 🧪 Testing & CI/CD
 
 ```text
-32 passed in 6.54s
-89% coverage
-```
-
-> I don't just use frameworks — I measure bottlenecks, fix them and verify the result.
-
-## Architecture
-
-```text
-Client
+Git Push
    │
    ▼
-FastAPI
+GitHub Actions
    │
-   ├── Authentication / Authorization
-   │
-   ├── Middleware
-   │     ├── CSRF
-   │     └── Rate Limiting
-   │
-   ├── Redis
-   │     ├── Response Cache
-   │     └── Rate Limits
-   │
-   ├── PostgreSQL
-   │     └── Persistent Data
-   │
-   └── Celery
-         └── Background Tasks
+   ├── PostgreSQL + Redis
+   ├── Alembic migrations
+   ├── Pytest
+   └── Coverage ≥ 85%
+          │
+          ▼
+      Production
 ```
 
-## Testing
+**62 tests · 87.03% coverage**
 
-The test suite covers:
+Tests cover authentication, authorization, CSRF, Redis, Celery, idempotency, task isolation, reports and N+1 protection.
 
-* User registration and authentication
-* Login and refresh token flow
-* CSRF protection
-* Authorization and role-based access
-* Task creation and retrieval
-* User data isolation
-* Report generation
-* Celery background tasks
-* Redis rate limiting
-* Redis TTL behavior
-* N+1 query detection
-* Health endpoint
-* API performance
+## 🛠️ Run Locally
 
-## Focus
+```bash
+git clone <your-repository>
+cd TaskPulse
+docker compose up --build
+```
 
-**Backend Engineering · API Design · Security · Async Processing · Databases · Caching · Testing · Performance**
+**App:** `http://localhost:8000`
+**Swagger:** `http://localhost:8000/docs`
