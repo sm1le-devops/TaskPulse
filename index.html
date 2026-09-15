@@ -616,15 +616,19 @@
         let pollInterval = null;
         let countdownInterval = null;
 
+        function getCsrfTokenFromCookie() {
+            const match = document.cookie
+                .split("; ")
+                .find(row => row.startsWith("csrf_token="));
 
+            return match ? decodeURIComponent(match.split("=")[1]) : "";
+        }
         window.onload = () => {
+            csrfToken = getCsrfTokenFromCookie();
 
             checkHealth();
-
             fetchCurrentUser();
-
             getTasks();
-
         };
 
 
@@ -640,9 +644,9 @@
             try {
 
                 const res = await fetch(
-                    `${API_URL}/docs`,
+                    `${API_URL}/health`,
                     {
-                        method: "HEAD"
+                        method: "GET"
                     }
                 );
 
