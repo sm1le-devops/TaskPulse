@@ -71,8 +71,41 @@ jobs:
         run: |
           poetry run pytest -v --cov --cov-report=term-missing
 
-  deploy:
+  migrate:
     needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Run production migrations
+        env:
+          SECRET_KEY: "ci-migration-secret"
+          DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+        run: |
+          poetry run alembic current
+          poetry run alembic upgrade head
+          poetry run alembic current
+
+  deploy:
+    needs: migrate
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
