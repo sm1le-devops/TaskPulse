@@ -93,6 +93,23 @@ typing-inspection = "0.4.2"
 typing_extensions = "4.16.0"
 uvicorn = "0.51.0"
 
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.16.7"
+
+[tool.ruff.lint]
+ignore = ["B008"]
+
+[tool.coverage.run]
+branch = true
+source = ["routers", "core", "db", "models", "schemas", "workers"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+

@@ -7,7 +7,7 @@ on:
     branches: ["**"]
 
 jobs:
-  test-and-deploy:
+  test:
     runs-on: ubuntu-latest
 
     services:
@@ -17,6 +17,20 @@ jobs:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: taskpuls_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: taskpuls
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U taskpuls_user -d taskpuls"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -40,6 +54,14 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
 
+      - name: Check Alembic migrations
+        env:
+          SECRET_KEY: "test_secret_key_for_pytest_12345"
+          DATABASE_URL: "postgresql://taskpuls_user:test_password@localhost:5432/taskpuls"
+        run: |
+          poetry run alembic upgrade head
+          poetry run alembic check
+
       - name: Run tests
         env:
           SECRET_KEY: "test_secret_key_for_pytest_12345"
@@ -47,9 +69,14 @@ jobs:
           REDIS_URL_BROKER: "redis://localhost:6379/0"
           REDIS_URL_CACHE: "redis://localhost:6379/1"
         run: |
-          poetry run pytest -v
+          poetry run pytest -v --cov --cov-report=term-missing
 
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Trigger Render Deploy
-        if: success() && github.ref == 'refs/heads/main'
         run: |
           curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

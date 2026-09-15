@@ -29,19 +29,15 @@ from unittest.mock import patch
 
 import pytest
 import redis
-
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import db.database as db_module
-import models.models
 import workers.celery_tasks
-
 from db.database import Base, get_db
 from main import app
-
 
 # ============================================================
 # SINGLE TEST DATABASE
@@ -89,6 +85,7 @@ app.dependency_overrides[get_db] = override_get_db
 # DATABASE FIXTURE
 # ============================================================
 
+
 @pytest.fixture(autouse=True)
 def setup_database():
     Base.metadata.create_all(bind=engine)
@@ -101,6 +98,7 @@ def setup_database():
 # ============================================================
 # REDIS FIXTURE
 # ============================================================
+
 
 @pytest.fixture(autouse=True)
 def clean_redis():
@@ -121,21 +119,21 @@ def clean_redis():
 # BACKGROUND TASK FIXTURE
 # ============================================================
 
+
 @pytest.fixture(autouse=True)
 def mock_background_tasks():
     """
     Prevent artificial 5-second welcome email delay
     during tests.
     """
-    with patch(
-        "routers.auth.send_welcome_email_task.delay"
-    ) as mock_email:
+    with patch("routers.auth.send_welcome_email_task.delay") as mock_email:
         yield mock_email
 
 
 # ============================================================
 # FASTAPI CLIENT
 # ============================================================
+
 
 @pytest.fixture
 def client():

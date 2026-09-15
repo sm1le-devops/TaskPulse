@@ -1,9 +1,9 @@
 import time
 
-
 # ============================================================
 # HELPERS
 # ============================================================
+
 
 def register_user(client):
     response = client.post(
@@ -58,6 +58,7 @@ def create_tasks(client, csrf_token, count=20):
 # BENCHMARK UTILITIES
 # ============================================================
 
+
 def benchmark_tasks_endpoint(client, requests=100):
     times = []
 
@@ -93,6 +94,7 @@ def benchmark_tasks_endpoint(client, requests=100):
 # ============================================================
 # HEALTH PERFORMANCE
 # ============================================================
+
 
 def test_health_performance(client, monkeypatch):
     """
@@ -136,6 +138,7 @@ def test_health_performance(client, monkeypatch):
 # ============================================================
 # TASKS PERFORMANCE
 # ============================================================
+
 
 def test_tasks_list_performance(client, monkeypatch):
     """
