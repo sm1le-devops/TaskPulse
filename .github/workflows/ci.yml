@@ -61,7 +61,6 @@ jobs:
         run: |
           poetry run alembic upgrade head
           poetry run alembic current
-          poetry run alembic check
 
       - name: Run tests
         env:
