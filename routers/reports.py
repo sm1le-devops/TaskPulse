@@ -1,10 +1,13 @@
 import uuid
+from datetime import UTC, datetime
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from sqlalchemy.orm import Session
 
 from core.security import get_current_user
-from models.models import User
+from db.database import get_db
+from models.models import ReportTask, User
 from workers.celery_app import celery
 from workers.celery_tasks import generate_user_report_task
 
@@ -17,6 +20,7 @@ IDEMPOTENCY_TTL = 60 * 60
 async def trigger_report(
     request: Request,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
     idempotency_key: str | None = Header(
         default=None,
         alias="Idempotency-Key",
@@ -37,7 +41,10 @@ async def trigger_report(
 
     redis_client = request.app.state.redis
 
-    redis_key = f"idempotency:reports:generate:{current_user.id}:{idempotency_key}"
+    redis_key = (
+        f"idempotency:reports:generate:"
+        f"{current_user.id}:{idempotency_key}"
+    )
 
     task_id = str(uuid.uuid4())
 
@@ -65,6 +72,26 @@ async def trigger_report(
             "idempotent": True,
         }
 
+    report_task = ReportTask(
+        celery_task_id=task_id,
+        user_id=current_user.id,
+        status="PENDING",
+        created_at=datetime.now(UTC),
+    )
+
+    try:
+        db.add(report_task)
+        db.commit()
+
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        await redis_client.delete(redis_key)
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create report task",
+        )
+
     try:
         generate_user_report_task.apply_async(
             args=[current_user.email],
@@ -72,6 +99,9 @@ async def trigger_report(
         )
 
     except Exception:  # noqa: BLE001
+        db.delete(report_task)
+        db.commit()
+
         await redis_client.delete(redis_key)
 
         raise HTTPException(
@@ -92,8 +122,27 @@ async def trigger_report(
 def get_report_status(
     task_id: str,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Checks the task status and returns the result if ready."""
+    """
+    Returns the status of a report task only if it belongs
+    to the currently authenticated user.
+    """
+
+    report_task = (
+        db.query(ReportTask)
+        .filter(
+            ReportTask.celery_task_id == task_id,
+            ReportTask.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if report_task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report task not found",
+        )
 
     task_result = AsyncResult(task_id, app=celery)
 
@@ -109,8 +158,27 @@ def get_report_status(
 async def cancel_report_task(
     task_id: str,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Cancel a running or pending Celery task."""
+    """
+    Cancels a report task only if it belongs
+    to the currently authenticated user.
+    """
+
+    report_task = (
+        db.query(ReportTask)
+        .filter(
+            ReportTask.celery_task_id == task_id,
+            ReportTask.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if report_task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report task not found",
+        )
 
     task_result = AsyncResult(task_id, app=celery)
 
@@ -118,6 +186,9 @@ async def cancel_report_task(
         terminate=True,
         signal="SIGKILL",
     )
+
+    report_task.status = "REVOKED"
+    db.commit()
 
     return {
         "status": "success",

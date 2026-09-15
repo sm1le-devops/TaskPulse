@@ -28,6 +28,8 @@ from workers.celery_tasks import send_welcome_email_task
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+LOGIN_MAX_FAILED_ATTEMPTS = 5
+LOGIN_BLOCK_TTL = 15 * 60
 
 @router.post("/register", response_model=UserResponse)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
@@ -49,7 +51,8 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(
+async def login(
+    request: Request,
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),  # <--- Using form instead of UserCreate
     db: Session = Depends(get_db),
@@ -58,13 +61,38 @@ def login(
     # form_data.password — entered password
 
     user = db.query(User).filter(User.email == form_data.username).first()
+    
+    redis_client = request.app.state.redis
 
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    client_ip = request.client.host
+    login_key = f"login:failed:{client_ip}:{form_data.username.lower()}"
+
+    if not user or not verify_password(
+        form_data.password,
+        user.hashed_password,
+    ):
+        failed_attempts = await redis_client.incr(login_key)
+
+        if failed_attempts == 1:
+            await redis_client.expire(
+                login_key,
+                LOGIN_BLOCK_TTL,
+            )
+
         logger.warning("Unsuccessful login")
+
+        if failed_attempts > LOGIN_MAX_FAILED_ATTEMPTS:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many failed login attempts. Please try again later.",
+            )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
+    await redis_client.delete(login_key)
+    
     logger.info(f"Successful login from user {user.email}")
     # 1. Generate short-lived Access Token
     access_token = create_access_token(data={"sub": user.email})
@@ -223,6 +251,7 @@ def logout(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
+    _: None = Depends(verify_csrf_token),
 ):
     refresh_token_val = request.cookies.get("refresh_token")
 

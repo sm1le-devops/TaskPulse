@@ -218,7 +218,82 @@ def test_login_correct_password(client):
     assert response.cookies.get("refresh_token") is not None
     assert response.cookies.get("csrf_token") is not None
 
+def test_login_sets_secure_cookie_flags(client):
+    register_response = register_user(
+        client,
+        "cookie-security@test.com",
+    )
 
+    assert register_response.status_code == 200
+
+    response = login_user(
+        client,
+        "cookie-security@test.com",
+    )
+
+    assert response.status_code == 200
+
+    set_cookie_headers = response.headers.get_list("set-cookie")
+
+    access_cookie = next(
+        cookie
+        for cookie in set_cookie_headers
+        if cookie.startswith("access_token=")
+    )
+
+    refresh_cookie = next(
+        cookie
+        for cookie in set_cookie_headers
+        if cookie.startswith("refresh_token=")
+    )
+
+    csrf_cookie = next(
+        cookie
+        for cookie in set_cookie_headers
+        if cookie.startswith("csrf_token=")
+    )
+
+    assert "HttpOnly" in access_cookie
+    assert "Secure" in access_cookie
+    assert "SameSite=Lax" in access_cookie
+
+    assert "HttpOnly" in refresh_cookie
+    assert "Secure" in refresh_cookie
+    assert "SameSite=Lax" in refresh_cookie
+
+    assert "HttpOnly" not in csrf_cookie
+    assert "Secure" in csrf_cookie
+    assert "SameSite=Lax" in csrf_cookie
+    
+
+def test_cors_allows_trusted_origin(client):
+    response = client.get(
+        "/health",
+        headers={
+            "Origin": "https://taskpulse-f5zy.onrender.com",
+        },
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.headers["access-control-allow-origin"]
+        == "https://taskpulse-f5zy.onrender.com"
+    )
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
+def test_cors_rejects_untrusted_origin(client):
+    response = client.get(
+        "/health",
+        headers={
+            "Origin": "https://evil.example.com",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
+    
+    
 def test_login_invalid_password(client):
     register_response = register_user(
         client,
@@ -335,7 +410,7 @@ def test_refresh_without_csrf(client):
 
     response = client.post("/auth/refresh")
 
-    assert response.status_code == 422
+    assert response.status_code == 403
 
 
 def test_refresh_with_invalid_csrf(client):
@@ -1322,6 +1397,149 @@ def test_report_idempotency_different_keys_create_different_tasks(client):
     assert mock_apply_async.call_count == 2
 
 
+
+def test_report_status_cannot_be_accessed_by_another_user(client):
+    # User A creates a report
+    register_owner = register_user(
+        client,
+        "report-owner@test.com",
+        "123",
+    )
+
+    assert register_owner.status_code == 200
+
+    login_owner = login_user(
+        client,
+        "report-owner@test.com",
+        "123",
+    )
+
+    assert login_owner.status_code == 200
+
+    owner_cookies = dict(client.cookies)
+
+    owner_csrf = get_csrf_token(login_owner)
+
+    generate_response = client.post(
+        "/reports/generate",
+        headers={
+            "X-CSRF-Token": owner_csrf,
+            "Idempotency-Key": "owner-report-123",
+        },
+    )
+
+    assert generate_response.status_code == 200
+
+    task_id = generate_response.json()["task_id"]
+
+    # User B logs in
+    register_other = register_user(
+        client,
+        "report-other@test.com",
+        "123",
+    )
+
+    assert register_other.status_code == 200
+
+    login_other = login_user(
+        client,
+        "report-other@test.com",
+        "123",
+    )
+
+    assert login_other.status_code == 200
+
+    # User B tries to access User A's report
+    response = client.get(
+        f"/reports/status/{task_id}",
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Report task not found"
+
+    # Restore User A's cookies to prove the task still belongs to A
+    client.cookies.clear()
+    client.cookies.update(owner_cookies)
+
+    owner_status_response = client.get(
+        f"/reports/status/{task_id}",
+    )
+
+    assert owner_status_response.status_code == 200
+    assert owner_status_response.json()["task_id"] == task_id
+    
+
+def test_report_cannot_be_cancelled_by_another_user(client):
+    # User A creates a report
+    register_owner = register_user(
+        client,
+        "cancel-owner@test.com",
+        "123",
+    )
+
+    assert register_owner.status_code == 200
+
+    login_owner = login_user(
+        client,
+        "cancel-owner@test.com",
+        "123",
+    )
+
+    assert login_owner.status_code == 200
+
+    owner_cookies = dict(client.cookies)
+
+    owner_csrf = get_csrf_token(login_owner)
+
+    generate_response = client.post(
+        "/reports/generate",
+        headers={
+            "X-CSRF-Token": owner_csrf,
+            "Idempotency-Key": "cancel-owner-123",
+        },
+    )
+
+    assert generate_response.status_code == 200
+
+    task_id = generate_response.json()["task_id"]
+
+    # User B logs in
+    register_other = register_user(
+        client,
+        "cancel-other@test.com",
+        "123",
+    )
+
+    assert register_other.status_code == 200
+
+    login_other = login_user(
+        client,
+        "cancel-other@test.com",
+        "123",
+    )
+
+    assert login_other.status_code == 200
+
+    # User B tries to cancel User A's report
+    response = client.post(
+        f"/reports/cancel/{task_id}",
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Report task not found"
+
+    # Restore User A's cookies
+    client.cookies.clear()
+    client.cookies.update(owner_cookies)
+
+    owner_status_response = client.get(
+        f"/reports/status/{task_id}",
+    )
+
+    assert owner_status_response.status_code == 200
+    assert owner_status_response.json()["task_id"] == task_id
+
+
 def test_report_generation_requires_idempotency_key(client):
     register_response = register_user(
         client,
@@ -1363,12 +1581,11 @@ def test_report_status_unknown_task(client):
 
     response = client.get("/reports/status/nonexistent-task-id")
 
-    assert response.status_code == 200
+    assert response.status_code == 404
 
     data = response.json()
 
-    assert data["task_id"] == "nonexistent-task-id"
-    assert data["ready"] is False
+    assert data["detail"] == "Report task not found"
 
 
 # ============================================================

@@ -32,6 +32,12 @@ class User(Base):
     refresh_tokens = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete"
     )
+    
+    report_tasks = relationship(
+    "ReportTask",
+    back_populates="user",
+    cascade="all, delete",
+    )
 
 
 class RefreshToken(Base):
@@ -46,3 +52,40 @@ class RefreshToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
 
     user = relationship("User", back_populates="refresh_tokens")
+    
+class ReportTask(Base):
+    """Background report task owned by a specific user."""
+
+    __tablename__ = "report_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    celery_task_id = Column(
+        String,
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+
+    status = Column(
+        String,
+        nullable=False,
+        default="PENDING",
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    user = relationship(
+        "User",
+        back_populates="report_tasks",
+    )

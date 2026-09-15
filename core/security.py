@@ -91,12 +91,16 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-def verify_csrf_token(request: Request, x_csrf_token: str = Header(...)):
+def verify_csrf_token(
+    request: Request,
+    x_csrf_token: str | None = Header(default=None),
+):
     cookie_csrf = request.cookies.get("csrf_token")
 
-    if not cookie_csrf or cookie_csrf != x_csrf_token:
+    if not cookie_csrf or not x_csrf_token or cookie_csrf != x_csrf_token:
         raise HTTPException(
-            status_code=403, detail="Security error: Invalid CSRF token"
+            status_code=403,
+            detail="Security error: Invalid CSRF token",
         )
 
 
