@@ -60,6 +60,7 @@ jobs:
           DATABASE_URL: "postgresql://taskpuls_user:test_password@localhost:5432/taskpuls"
         run: |
           poetry run alembic upgrade head
+          poetry run alembic current
           poetry run alembic check
 
       - name: Run tests
