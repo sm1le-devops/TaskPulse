@@ -89,8 +89,9 @@
 * Login **brute-force protection**
 * bcrypt password hashing
 * Secure / SameSite cookies
-* Security headers + CSP
 * User-level data isolation
+* Security headers + CSP
+
 
 ## ⚙️ Engineering Highlights
 
